@@ -1,6 +1,6 @@
 {
   "name": "express-browserify",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Thin browserify middleware for express.",
   "main": "index.js",
   "scripts": {

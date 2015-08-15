@@ -64,7 +64,7 @@ function(source, options, next) {
 If there is an error during mutation, either throw the error synchronously call the next method with the error as the first argument.
 
 ```js
-function(source, next) {
+function(source, options, next) {
 	somethingAsync(source, function(err, data) {
 		if  (err) {
 			next(err);
