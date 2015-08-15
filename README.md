@@ -13,112 +13,45 @@ npm install express-browserify --save
 
 ```js
 var app = require('express')();
-var browserify = require('express-browserify');
+var expressBrowserify = require('express-browserify');
+
+app.get(route, expressBrowserify(files, options, callback));
 ```
 
-### browserify.settings
+## API
 
-The default options object. If an options object is passed to the middelware constructor, then its keys will replace any duplicate keys in this object.
+### handler = expressBrowserify([files][, options][, callback])
 
-### browserify([files][, options][, callback])
-
-Creates a middlware function which can be used with any express request method.
+Handler factory. Creates a middlware callback function which can be used with any express request method.
 
 `files` String, Stream, or Array passed to the browserify constructor.
 
-`options` Object passed to the browserify constructor. Some extra options have been added for use by this middleware: watch, precompile, and mutate.
+`options` Object with middleware specicfic options and optios passed to the browserify constructor.
 
 `callback` Function passed a reference to the browserify instance to allow additional configuration before the bundle is compiled. Returning false from this callback will override the precompile option. The `.bundle()` method may be called to precompile manually.
 
-Example:
+#### options
 
-```js
-app.get('/bundle.js', browserify(
-	// Specify a list of entry scripts for the bundle.
-	['./entry.js'],
+The standard browserify options are passed through directly to the underlying browserify instance.
 
-	// Pass options to browserify and the middleware.
-	{
-		// All standard browserify options are supported and passed directly to
-		// the browserify constructor.
+##### options.require
+##### options.external
+##### options.ignore
+##### options.exclude
 
-		// All options are shown here with their default values.
-		
-		// The following non-standard options are added to fill in missing
-		// browserify options. Non-null/undefined values will be passed to the
-		// browserify method of the same name.
+These options have been added to allow access to browserify features without having to call browserify methods. Non-null/undefined values are passed directly to the browserify methods of the same name.
 
-		require: null,
-		external: null,
-		ignore: null,
-		exclude: null,
+##### options.watch
 
-		// The following non-standard options are used by this middleware.
+If set to true, all files referenced by the bundle will be watched using watchify, and updates to those files will regenerate the bundle. Defaults to false.
 
-		// Use watchify to update the bundle when a file changes. If this is
-		// true, the browserify instance will be wrapped using the watchify
-		// module and the "update" event will be bound to re-invoke .bundle()
-		// on the browserify instance.
-		watch: false,
+##### options.precompile
 
-		// Compile the bundle before the first request. If false, compilation
-		// will be delayed util the first request is received.
-		precompile: true,
+If set to true, the bundle will be compiled without waiting for the first request. Otherwise, the first request will trigger the bundle to be compiled. Defeaults to true.
 
-		// Provide a function or an array of functions which can modify
-		// browserify's output.
-		mutate: []
-	},
+##### options.mutate
 
-	// Access the browserify instance before .bundle() is called.
-	function(b) {
-		b.transform(...);
-	}
-});
-```
-
-Single-Entry-Point Bundle:
-
-```js
-app.get('/bundle.js', browserify('./entry.js'));
-```
-
-No-Entry-Point Bundle Exposing Modules Via `require()`:
-
-```js
-app.get('/bundle.js', browserify({
-	require: [
-		'foo',
-		'./bar.js',
-		{ file: './baz.js', expose: 'baz' }
-	]
-}));
-```
-
-Using Modules From Another Bundle:
-
-```js
-app.get('/bundle.js', browserify({
-	// Use exclude instead of external for bundles which are dynamically
-	// generated and therefore do not have a filename that can be referenced.
-	// It's up to you to include a bundle on the page that will expose a
-	// require() method for the excluded module names.
-	exclude: [
-		'foo',
-		'./bar.js',
-		'baz'
-	],
-
-	// You can of course still use external for pre-compiled bundles.
-	external: [
-		'./compiled-bundle.js'
-	]
-}));
-```
-
-#### options.mutate
-
-This can be a single function or an array of functions. Each function will be passed the compiled source, the options passed to the middleware constructor, and a next callback.
+This can be a single function or an array of functions. Each function will be passed the compiled source, the options passed to the handler factory, and a next callback.
 
 ```js
 function(source, options, next) {
@@ -142,35 +75,94 @@ function(source, next) {
 }
 ```
 
-#### Internal Browserify Instance
+##### options.register
 
-The browserify instance that the middleware uses internally can be accessed through the callback argument to the middleware constructor, or the `.browserify` property on the returned middleware callback function.
+Set a virtual filename for the bundle. This virtual filename can be used with the `.external()` method or "external" option to referenece the bundle.
+
+### expressBrowserify.settings
+
+Default options.
+
+## Internal Browserify Instance
+
+The [browserify](https://github.com/substack/node-browserify) instance that the handler uses internally can be accessed through the factory callback, or the `handler.browserify` property.
 
 ```js
-var middleware = browserify(function(b) {
-	// b is the browserify instance.
+var handler = expressBrowserify(function(b) {
+	// b is the expressBrowserify instance.
 });
 
 // This is the same browserify instance.
-middleware.browserify;
+handler.browserify;
 ```
 
-## Browserify Patches
+### Browserify Patches
+
+The following additions and modifications are made to the browserify instances that the middleware creates.
+
+#### Watchify
 
 If the "watch" option is true, then browserify will be wrapped using the watchify module. See the [watchify documentation](https://github.com/substack/watchify) for more information.
 
-### b.require()
+#### browserify.require()
 
-Accept a single object argument with "file" property. Equivalent to passing an array containing a single object.
+Modified to accept a single object argument with "file" property. Equivalent to passing an array containing a single object.
 
-### b.ignore()
+#### browserify.ignore()
 
-Accept arrays as well as single values.
+Modified to accept arrays as well as single values.
 
-### b.exclude()
+#### browserify.exclude()
 
-Accept arrays as well as single values. Values can be `.require()` compatible objects in which case the "expose" or "file" value will be excluded.
+Modified to accept arrays as well as single values. Values can be `.require()` compatible objects in which case the "expose" or "file" value will be excluded.
 
-### Event: bundled
+#### browserify.register(name)
+
+Makes a bundle referenceable using the `.external()` method or "external" option. Effectively, it makes a bundle behave like it has a filename for external referencing.
+
+#### Event: bundled
 
 Emitted after `.bundle()` has been called and completed successfully. Callbacks are passed the browserified and mutated output.
+
+## Examples
+
+### Single Entry-Point
+
+```js
+app.get('/bundle.js', expressBrowserify('./entry.js'));
+```
+
+### No Entry-Point With Exposed Modules
+
+```js
+app.get('/bundle.js', expressBrowserify({
+	require: [
+		'foo',
+		'./bar.js',
+		{ file: './baz.js', expose: 'baz' }
+	]
+}));
+```
+
+### Referencing Another Bundle
+
+Use the `.register()` method or "register" option to set the virtual file name for a bundle.
+
+```js
+app.get('/shared.js', expressBrowserify({
+	register: '/shared.js',
+	require: [...]
+});
+```
+
+Then, use the virtual file name with the external option just like you would use a real file's name.
+
+```js
+app.get('/bundle.js', expressBrowserify('./entry.js', {
+	external: [
+		// The middleware modified .external() method will replace this with
+		// the registered bundle instance.
+		'/shared.js'
+	]
+}));
+```

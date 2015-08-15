@@ -16,9 +16,10 @@ var middleware = module.exports = function(files, options, callback) {
 
 	files = args.get(_.isString, _.isArray, isStream);
 	options = _.assign({}, middleware.settings, args.get(isOptions));
-	callback = args.get(_.isFunction) || function() {};
+	callback = args.get(_.isFunction);
 
 	var opts = _.assign({}, options);
+	delete opts.register;
 	delete opts.watch;
 	delete opts.precompile;
 	delete opts.mutate;
@@ -27,7 +28,7 @@ var middleware = module.exports = function(files, options, callback) {
 	delete opts.ignore;
 	delete opts.exclude;
 
-	var b = handler.browserify = patchBrowserify(files ? browserify(files, opts) : browserify(opts));
+	var b = patchBrowserify(files ? browserify(files, opts) : browserify(opts));
 	var compiled = false;
 	var source = null;
 	var err = null;
@@ -42,6 +43,12 @@ var middleware = module.exports = function(files, options, callback) {
 		});
 	}
 
+	handler.browserify = b;
+	handler.register = function(name) {
+		b.register(name);
+		return handler;
+	};
+
 	b.bundle = _.wrap(b.bundle, function(bundle, callback) {
 		compiled = true;
 
@@ -51,17 +58,21 @@ var middleware = module.exports = function(files, options, callback) {
 
 		return bundle.call(this, function(e, s) {
 			if (e) {
-				callback.call(this, e);
 				oncompiled(e);
+				callback.call(this, e);
 			} else {
 				s = s.toString();
 				mutate(options.mutate, s, options, function(e, s) {
-					callback.call(this, e, s);
 					oncompiled(e, s);
+					callback.call(this, e, s);
 				});
 			}
 		});
 	});
+
+	if (options.register != null) {
+		b.register(options.register);
+	}
 
 	if (options.require != null) {
 		b.require(options.require);
@@ -79,19 +90,21 @@ var middleware = module.exports = function(files, options, callback) {
 		b.exclude(options.exclude);
 	}
 
-	if (callback.call(this, b) !== false && (options.precompile == null || options.precompile)) {
-		process.nextTick(function() {
-			if (compiled) {
-				return;
-			}
+	process.nextTick(function() {
+		if (callback && callback.call(this, b) === false) {
+			return;
+		} else if (!options.precompile && options.precompile != null) {
+			return;
+		} else if (compiled) {
+			return;
+		}
 
-			b.bundle(function(err) {
-				if (err && pending.length === 0) {
-					throw err;
-				}
-			});
+		b.bundle(function(err) {
+			if (err && pending.length === 0) {
+				throw err;
+			}
 		});
-	}
+	});
 
 	return handler;
 
