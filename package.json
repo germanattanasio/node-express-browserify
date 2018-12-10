@@ -24,9 +24,9 @@
   },
   "homepage": "https://github.com/ChrisAckerman/node-express-browserify#readme",
   "dependencies": {
-    "browserify": "^11.0.1",
-    "lodash": "^3.10.1",
+    "browserify": "^16.2.3",
+    "lodash": "^4.17.11",
     "typed-args": "^1.0.0",
-    "watchify": "^3.3.1"
+    "watchify": "^3.11.0"
   }
 }
